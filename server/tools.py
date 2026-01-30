@@ -6,7 +6,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Tool 1 - Fetch public IP address
-async def fetch_public_ip() -> str:
+async def get_public_ip() -> str:
     """Fetches the public IP address of the machine using api.ipify.org."""
     try:
         url = 'https://api.ipify.org?format=json'
