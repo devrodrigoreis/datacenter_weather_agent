@@ -2,7 +2,7 @@ from mcp.server.fastmcp import FastMCP
 from server.tools import get_public_ip, get_location_from_ip, get_weather_forecast
 
 # Initialize FastMCP server
-mcp = FastMCP("Datacenter Weather Agent")
+mcp = FastMCP("Datacenter Weather Tools")
 
 @mcp.tool()
 async def ipify() -> str:
