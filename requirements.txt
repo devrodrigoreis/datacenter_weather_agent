@@ -3,3 +3,6 @@ mcp
 langgraph
 langgraph-checkpoint-sqlite
 langchain
+langchain-google-genai
+langchain-openai
+python-dotenv
