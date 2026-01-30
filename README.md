@@ -432,7 +432,7 @@ workflow.add_conditional_edges("start", route_to_specialist, {...})
 ```bash
 # Always run from project root:
 cd /path/to/datacenter_weather_agent
-python3 -m agent.main  # ✅ NOT: python agent/main.py
+python3 -m agent.main 
 ```
 
 ### Tool Validation Errors
