@@ -1,2 +1,5 @@
 httpx
 mcp
+langgraph
+langgraph-checkpoint-sqlite
+langchain
