@@ -85,11 +85,14 @@ class AgentState(TypedDict):
     # Error tracking
     error: str | None
     
+    # Tool call tracking
+    tool_calls: list[dict]
+    
     # Progress tracking for trace output
     current_step: str
 
 # Adding the NODES (Computation Units) - "best part"
-#This node classifies the user intent to determine if the question is weather/location related.
+# This node classifies the user intent to determine if the question is weather/location related.
 # If not, the agent will refuse to answer.
 # I think that it is crucial to prevent the agent from attempting to answer off-topic questions.
 # whitout this step, the agent might try to provide weather/location info for unrelated queries, 
@@ -208,6 +211,8 @@ async def get_ip_node(state: AgentState, tools_client) -> AgentState:
     print("\n[Step 1: IP Discovery]")
     
     try:
+        tool_calls = state.get("tool_calls", [])
+        
         # Find the ipify tool
         ipify_tool = next((t for t in tools_client if t.name == "ipify"), None)
         if not ipify_tool:
@@ -216,6 +221,7 @@ async def get_ip_node(state: AgentState, tools_client) -> AgentState:
         # Execute tool
         result = await ipify_tool.ainvoke({})
         public_ip = result.strip()
+        tool_calls.append({"tool": "ipify", "args": {}, "result": public_ip})
         
         print(f"  Tool: ipify")
         print(f"  Result: {public_ip}")
@@ -224,6 +230,7 @@ async def get_ip_node(state: AgentState, tools_client) -> AgentState:
         return {
             **state,
             "public_ip": public_ip,
+            "tool_calls": tool_calls,
             "current_step": "ip_discovered",
             "messages": state["messages"] + [
                 AIMessage(content=f"Discovered public IP: {public_ip}")
@@ -255,6 +262,8 @@ async def resolve_location_node(state: AgentState, tools_client) -> AgentState:
     print("\n[Step 2: Location Resolution]")
     
     try:
+        tool_calls = state.get("tool_calls", [])
+        
         # Validate prerequisites
         if not state.get("public_ip"):
             raise RuntimeError("No public IP available in state")
@@ -277,6 +286,8 @@ async def resolve_location_node(state: AgentState, tools_client) -> AgentState:
             latitude = result.get("latitude")
             longitude = result.get("longitude")
         
+        tool_calls.append({"tool": "ip_to_geo", "args": {"ip": state["public_ip"]}, "result": result})
+        
         print(f"  Tool: ip_to_geo")
         print(f"  Input: {state['public_ip']}")
         print(f"  Result: {latitude}, {longitude}")
@@ -286,6 +297,7 @@ async def resolve_location_node(state: AgentState, tools_client) -> AgentState:
             **state,
             "latitude": latitude,
             "longitude": longitude,
+            "tool_calls": tool_calls,
             "current_step": "location_resolved",
             "messages": state["messages"] + [
                 AIMessage(content=f"Located at coordinates: {latitude}, {longitude}")
@@ -317,6 +329,8 @@ async def fetch_weather_node(state: AgentState, tools_client) -> AgentState:
     print("\n[Step 3: Weather Retrieval]")
     
     try:
+        tool_calls = state.get("tool_calls", [])
+        
         # Validate prerequisites
         if state.get("latitude") is None or state.get("longitude") is None:
             raise RuntimeError("No coordinates available in state")
@@ -333,6 +347,11 @@ async def fetch_weather_node(state: AgentState, tools_client) -> AgentState:
         })
         
         weather_data = result.strip()
+        tool_calls.append({
+            "tool": "weather_forecast",
+            "args": {"latitude": state["latitude"], "longitude": state["longitude"]},
+            "result": weather_data
+        })
         
         print(f"  Tool: weather_forecast")
         print(f"  Input: lat={state['latitude']}, lon={state['longitude']}")
@@ -342,6 +361,7 @@ async def fetch_weather_node(state: AgentState, tools_client) -> AgentState:
         return {
             **state,
             "weather_data": weather_data,
+            "tool_calls": tool_calls,
             "current_step": "weather_fetched",
             "messages": state["messages"] + [
                 AIMessage(content=f"Weather data: {weather_data}")
@@ -678,6 +698,7 @@ async def main():
                     answer=None,
                     messages=[HumanMessage(content=user_input)],
                     error=None,
+                    tool_calls=[],
                     current_step="started"
                 )
                 
@@ -690,6 +711,25 @@ async def main():
                     print("FINAL ANSWER")
                     print("=" * 60)
                     print(f"\n{final_state.get('answer', 'No answer generated')}\n")
+                    
+                    # Display tool call trace
+                    tool_calls = final_state.get("tool_calls", [])
+                    if tool_calls:
+                        print("-" * 60)
+                        print("Tool Calls:")
+                        for i, call in enumerate(tool_calls, 1):
+                            tool_name = call.get("tool", "unknown")
+                            args = call.get("args", {})
+                            result = call.get("result", "")
+                            
+                            args_str = ", ".join(f"{k}={v}" for k, v in args.items()) if args else ""
+                            result_preview = str(result)[:50]
+                            if len(str(result)) > 50:
+                                result_preview += "..."
+                            
+                            print(f"  {i}. {tool_name}({args_str}) -> {result_preview}")
+                        print("-" * 60)
+                    print()
                     
                 except Exception as graph_err:
                     print(f"\nError during graph execution: {graph_err}")
